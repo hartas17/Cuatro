@@ -1,0 +1,19 @@
+Dogger/settings.py
+*.pyc
+.idea/workspace.xml
+api/serializers.pyc
+media/
+debug/debug.log
+api/utils/*.pyc
+*.pyc
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+!api/migrations/__init__.py

@@ -2,12 +2,12 @@
 from __future__ import unicode_literals
 import logging
 import os
-from pyfcm import FCMNotification
+#from pyfcm import FCMNotification PUSH
 
 from rest_framework_jwt import utils
 
 
-from api.models import AppUsers, PanelUsers, Users, DataDevice
+from api.models import Users
 
 logger = logging.getLogger(__name__)
 
@@ -89,38 +89,39 @@ def DecodeToken(request):
     token = utils.jwt_decode_handler(Token)
     print token
     try:
-        item = AppUsers.objects.get(pk=token['user_id'])
+        item = Users.objects.get(pk=token['user_id'])
         return item
     except Exception as e:
         print e
         return None
 
 
-def send_push(token,message_title,message_body):
-    push_service = FCMNotification(
-        api_key='AAAA68GdzDs:APA91bFce3Ca1y79C3d3RDTjaKNQhET7kzeRbC8ljVSf4uPNeq5G974K9j6WEn3SUPkY0gls6PfblO4oIk0mOauAVXfME77mCAsmFdodOx246KJOwMaxBW8_ZM1OnenI-4IwJ8dz4gbW')
-
-    # Your api-key can be gotten from:  https://console.firebase.google.com/project/<project-name>/settings/cloudmessaging
-
-    registration_id = token
-    result = push_service.notify_single_device(registration_id=registration_id, message_title=message_title,
-                                               message_body=message_body)
-    logging.debug(result)
-    pass
-
-
-def send_push_all(message_title,message_body):
-    push_service = FCMNotification(
-        api_key='AAAA68GdzDs:APA91bFce3Ca1y79C3d3RDTjaKNQhET7kzeRbC8ljVSf4uPNeq5G974K9j6WEn3SUPkY0gls6PfblO4oIk0mOauAVXfME77mCAsmFdodOx246KJOwMaxBW8_ZM1OnenI-4IwJ8dz4gbW')
-
-    # Your api-key can be gotten from:  https://console.firebase.google.com/project/<project-name>/settings/cloudmessaging
-
-    registration_id = DataDevice.objects.all()
-    response =[]
-    for registration in registration_id:
-        response.append(registration.token)
-    print response
-    result = push_service.notify_multiple_devices(registration_ids=response, message_title=message_title,
-                                               message_body=message_body)
-    logging.debug(result)
-    pass
+# SEND PUSH
+# def send_push(token,message_title,message_body):
+#     push_service = FCMNotification(
+#         api_key='API_KEY')
+#
+#     # Your api-key can be gotten from:  https://console.firebase.google.com/project/<project-name>/settings/cloudmessaging
+#
+#     registration_id = token
+#     result = push_service.notify_single_device(registration_id=registration_id, message_title=message_title,
+#                                                message_body=message_body)
+#     logging.debug(result)
+#     pass
+#
+#
+# def send_push_all(message_title,message_body):
+#     push_service = FCMNotification(
+#         api_key='')
+#
+#     # Your api-key can be gotten from:  https://console.firebase.google.com/project/<project-name>/settings/cloudmessaging
+#
+#     registration_id = DataDevice.objects.all()
+#     response =[]
+#     for registration in registration_id:
+#         response.append(registration.token)
+#     print response
+#     result = push_service.notify_multiple_devices(registration_ids=response, message_title=message_title,
+#                                                message_body=message_body)
+#     logging.debug(result)
+#     pass
