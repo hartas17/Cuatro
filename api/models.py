@@ -2,6 +2,7 @@
 from __future__ import unicode_literals
 import uuid
 import datetime as times
+import os
 
 from django.contrib.auth.hashers import make_password, check_password
 from django.db import models
@@ -12,21 +13,43 @@ from rest_framework_jwt.settings import api_settings
 # Create your models here.
 
 
+def path_and_rename(instance, filename):
+    upload_to = 'profile'
+    ext = filename.split('.')[-1]
+    # get filename
+    if instance.pk:
+        filename = '{}.{}'.format(instance.pk, ext)
+    else:
+        # set filename as random string
+        filename = '{}.{}'.format(uuid.uuid4().hex, ext)
+    # return the whole path to the file
+    return os.path.join(upload_to, filename)
+
+
 class Users(models.Model):
-    username = models.CharField(unique=True, max_length=255)
+    username = models.CharField(max_length=255)
     uuid = models.UUIDField(unique=True, default=uuid.uuid4, editable=False)
-    image = models.CharField(max_length=255, null=True, blank=True)
+    image = models.ImageField(upload_to=path_and_rename, default='profile/default.jpg', null=True, blank=True)
     firstname = models.CharField(max_length=124)
     lastname = models.CharField(max_length=124, blank=True, null=True)
     email = models.CharField(unique=True, max_length=255)
     password = models.CharField(max_length=128)
     token = models.CharField(max_length=255, blank=True, null=True)
+    recoverpassword = models.CharField(max_length=255, blank=True, null=True)
     created = models.DateTimeField(db_column='created', auto_now_add=True)
     updated = models.DateTimeField(db_column='updated', auto_now=True)
 
     class Meta:
         managed = True
         db_table = 'Users'
+
+    def save(self, *args, **kwargs):
+        try:
+            if self.pk is None:
+                self.password = make_password(self.password)
+            super(Users, self).save(*args, **kwargs)
+        except:
+            super(Users, self).save(*args, **kwargs)
 
     def set_password(self, password):
         self.password = make_password(password)
@@ -56,7 +79,6 @@ class Users(models.Model):
 
 
 class Owner(Users):
-
     class Meta:
         managed = True
         db_table = 'owner'
@@ -68,7 +90,8 @@ class Owner(Users):
                 'username': self.username,
                 'firstname': self.firstname,
                 'email': self.email,
-                'token': self.token
+                'token': self.token,
+                'image': self.image.name
                 }
 
     @classmethod
@@ -95,9 +118,8 @@ class Owner(Users):
 
 
 class DogWalker(Users):
-    reserved = models.BooleanField(default=False)
-    ranking = models.BooleanField(default=5.0)
-
+    favorite = models.BooleanField(default=False)
+    ranking = models.FloatField(default=5.0)
 
     class Meta:
         managed = True
@@ -110,7 +132,8 @@ class DogWalker(Users):
                 'username': self.username,
                 'firstname': self.firstname,
                 'email': self.email,
-                'token': self.token
+                'token': self.token,
+                'image': self.image.name
                 }
 
     @classmethod
@@ -169,15 +192,16 @@ class DogOwner(models.Model):
         db_table = 'dog_owner'
 
 
-class Reserver(models.Model):
+class Favorite(models.Model):
     owner = models.ForeignKey(Owner, on_delete=models.CASCADE, null=True, blank=True)
-    dogwalker = models.ForeignKey(DogWalker, on_delete=models.CASCADE, null=True, blank=True)
+    dogwalker = models.ForeignKey(DogWalker, on_delete=models.CASCADE, related_name="dogwalker_favorite", null=True,
+                                  blank=True)
     created = models.DateTimeField(db_column='created', auto_now_add=True)
     updated = models.DateTimeField(db_column='updated', auto_now=True)
 
     class Meta:
         managed = True
-        cb_table = 'reserver'
+        db_table = 'favorite'
 
 
 class Location(models.Model):
@@ -192,3 +216,27 @@ class Location(models.Model):
         managed = True
         db_table = 'location'
 
+
+class Service(models.Model):
+    dogwalker = models.ForeignKey(DogWalker, on_delete=models.SET_NULL, null=True, blank=True)
+    status = models.IntegerField(default=0)
+    owner = models.ForeignKey(Owner, on_delete=models.CASCADE, null=True, blank=True)
+    start_service = models.DateTimeField(blank=True, null=True)
+    finish_service = models.DateTimeField(blank=True, null=True)
+    createdat = models.DateTimeField(db_column='created_at', auto_now_add=True)  # Field name made lowercase.
+    updatedat = models.DateTimeField(db_column='updated_at', auto_now=True)  # Field name made lowercase.
+
+    class Meta:
+        managed = True
+        db_table = 'service'
+
+
+class DogsServices(models.Model):
+    dog = models.ForeignKey(Dog, on_delete=models.CASCADE, null=True, blank=True)
+    service = models.ForeignKey(Service, null=False, related_name='service_dog')
+    createdat = models.DateTimeField(db_column='created_at', auto_now_add=True)  # Field name made lowercase.
+    updatedat = models.DateTimeField(db_column='updated_at', auto_now=True)  # Field name made lowercase.
+
+    class Meta:
+        managed = True
+        db_table = 'dog_service'

@@ -3,11 +3,14 @@ from math import sin, cos, asin, atan2, degrees, radians, sqrt, pow, pi
 """Module to do geographic calculations.
 Most of the formulas in this module where taken from
 http://www.movable-type.co.uk/scripts/latlong.html
+
+coautor: hartas17@gmail.com
 """
 
 
 def latlng_from_degrees(lat, lng):
     return LatLng(lat, lng)
+
 
 def latlng_from_radians(lat, lng):
     return LatLng(degrees(lat), degrees(lng))

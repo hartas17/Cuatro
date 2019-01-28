@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 import logging
 import base64
+import os.path
 
+from django.contrib.auth.hashers import make_password
 from django.core.mail import send_mail
 from django.core.validators import validate_email
 from django.http import JsonResponse
@@ -11,11 +13,14 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from api.Serializer.DogWalkerSerializer import DogWalkerSerializer
+from api.Serializer.OwnserSerializer import OwnerSerializer
 from api.auth_middleware import login_required
 from api.models import Users, Owner, DogWalker
 from api.utils.utils import handle_uploaded_file, check_errors_login, DecodeToken
 
 logger = logging.getLogger(__name__)
+PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
 
 
 def check_errors_password(password):
@@ -42,12 +47,14 @@ def check_errors_email(email, errors):
     return result
 
 
-def check_errors_create_account(username, firstname, email, password):
+def check_errors_create_account(email, firstname, password, username):
     errors = []
     username_query = Users.objects.filter(username=username)
     email_query = Users.objects.filter(email=email)
+    if not username:
+        errors.append("Necesita proporcionar un nombre de usuario")
 
-    if not username and (username_query.count() >= 1):
+    if username and (username_query.count() >= 1):
         errors.append("Ese usuario ya está vinculado a otra cuenta")
 
     if not email:
@@ -68,20 +75,13 @@ def check_errors_create_account(username, firstname, email, password):
 def register_owner(request):
     if request.method == 'POST':
         request.POST._mutable = True
-        name = ""
-        try:
-            myfile = request.FILES["image"]
-            handle_uploaded_file(myfile, myfile.name, 'media/profile/')
-            name = "/profile/" + myfile.name
-        except Exception as e:
-            print e
-            name = '/profile/defaul.png'
         firstname = request.POST.get('firstname', '')
         lastname = request.POST.get('lastname', '')
         email = request.POST.get('email', '')
         password = request.POST.get('password', '')
+        username = request.POST.get('username', '')
 
-        errors = check_errors_create_account(email, firstname, email, password, 1)
+        errors = check_errors_create_account(email, firstname, password, username)
 
         status = 400
         response = {'success': (len(errors) == 0),
@@ -90,9 +90,16 @@ def register_owner(request):
         if response['success']:
             # successs
             status = 200
-            new_user = Owner(username=email, firstname=firstname, lastname=lastname, email=email,image=name)
-            new_user.set_password(password)
-            response = new_user.details_dict()
+            # new_user = Owner(username=email, firstname=firstname, lastname=lastname, email=email)
+            # new_user.set_password(password)
+            serializer = OwnerSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                response = serializer.data
+            else:
+                print serializer.errors
+                response = {'success': False, errors: serializer.errors}
+
         else:
             logger.error(errors)
 
@@ -102,12 +109,12 @@ def register_owner(request):
 
 
 @api_view(['POST'])
-def login_app_user(request):
+def login_owner(request):
     if request.method == 'POST':
-        email = request.POST.get("email", "")
+        username = request.POST.get("username", "")
         password = request.POST.get("password", "")
-        errors = check_errors_login(email, password)
-        user = Owner.objects.filter(username=email).first()
+        errors = check_errors_login(username, password)
+        user = Owner.objects.filter(username=username).first()
         status = 200
         # check that that the account exists
         if (not errors) and (user is None):
@@ -144,7 +151,8 @@ def register_dogwalker(request):
         lastname = request.POST.get('lastname', '')
         email = request.POST.get('email', '')
         password = request.POST.get('password', '')
-        errors = check_errors_create_account(email, firstname, email, password, 2)
+        username = request.POST.get('username','')
+        errors = check_errors_create_account(email, firstname, password,username )
 
         status = 400
         response = {'success': (len(errors) == 0),
@@ -153,9 +161,13 @@ def register_dogwalker(request):
         if response['success']:
             # successs
             status = 200
-            new_user = DogWalker(username=email, firstname=firstname, lastname=lastname, email=email)
-            new_user.set_password(password)
-            response['data'] = new_user.details_dict()
+            serializer = DogWalkerSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                response = serializer.data
+            else:
+                print serializer.errors
+                response = {'success': False, errors: serializer.errors}
         else:
             logger.error(errors)
 
@@ -165,14 +177,12 @@ def register_dogwalker(request):
 
 
 @api_view(['POST'])
-def login_panel_user(request):
-
-    email = request.POST.get("email", "")
+def login_dogwalker(request):
+    username = request.POST.get("username", "")
     password = request.POST.get("password", "")
-    print email
-    print password
-    errors = check_errors_login(email, password)
-    user = DogWalker.objects.filter(username=email).first()
+
+    errors = check_errors_login(username, password)
+    user = DogWalker.objects.filter(username=username).first()
     status = 200
     # check that that the account exists
     if (not errors) and (user is None):
@@ -191,15 +201,14 @@ def login_panel_user(request):
     #                      " de la cuenta para iniciar sesión")
     if not errors:
         # Success
-        response = {'success': True,
-                    'data': user.details_dict()}
+        response = user.details_dict()
     else:
         # Error
         status = 400
         response = {'success': False,
                     'errors': errors}
 
-    return Response(response,status=status)
+    return JsonResponse(response, safe=False, status=status)
 
 
 @login_required
@@ -218,7 +227,7 @@ def change_password(request):
             return Response(dict(success=False, errors=['No coinciden las contraseñas']),
                             status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
-        print e
+        logging.error(e)
         return Response(status=status.HTTP_401_UNAUTHORIZED)
 
 
@@ -230,13 +239,14 @@ def recover_password(request):
         try:
             item_app_user = Users.objects.get(email__iexact=request.data['email'])
             data = base64.b64encode(request.data['email'])
-            item_app_user.recoverPassword=data
-            send_mail('Recuperar contrasena', "http://localhost:8000/api/reset_password/?token=" + data,
-                      'hartas17@gmail.com', [email],
+            item_app_user.recoverpassword = data
+            item_app_user.save()
+            send_mail('Recuperar contrasena', "http://"+request.get_host()+"/api/reset_password/?token=" + data,
+                      'info@dogger.com', [email],
                       fail_silently=False)
         except Exception as e:
-            logging.debug(e)
             print e
+            logging.debug(e)
         return Response(status=200)
 
 
@@ -264,10 +274,10 @@ class PasswordResetView(View):
                 token_message = request.POST.get("token", "")
                 email = base64.b64decode(token_message)
                 context = {'success': True}
-                usuario = AppUsers.objects.get(email=email)
+                usuario = Users.objects.get(email=email)
                 usuario.password = make_password(new_password)
-                if usuario.recoverpassword==token_message:
-                    usuario.recoverpassword=""
+                if usuario.recoverpassword == token_message:
+                    usuario.recoverpassword = ""
                     usuario.save()
                 else:
                     return Response(status=status.HTTP_400_BAD_REQUEST)

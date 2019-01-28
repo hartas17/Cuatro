@@ -85,10 +85,10 @@ def login_and_is_owner(func):
     return wrapped_func
 
 
-#Check if user is owner
-def isOwner(func):
+#Check if user is dogwalker
+def is_dogwalker(func):
     def wrapped_func(request, *args, **kwargs):
-        if request.owner is None or request.dogwalker is None:
+        if request.dogwalker is None:
             response = {'success': False,
                         'errors': ["Se necesita iniciar sesion " +
                                    "para usar este metodo"],
@@ -101,6 +101,7 @@ def isOwner(func):
     return wrapped_func
 
 
+#Check if user is owner
 def is_owner(func):
     def wrapped_func(request, *args, **kwargs):
         if request.dogwalker is None:
